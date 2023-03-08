@@ -1,0 +1,11 @@
+Table 1: Skin tone categorization scheme. (from https://arxiv.org/abs/1910.13268, reflected in ita_cutoffs.json)
+
+ITA Range             Skin Tone         Category Abbreviation
+ITA > 55◦             Very Light        very_lt
+48◦ < ITA ≤ 55◦       Light 2           lt2
+41◦ < ITA ≤ 48◦       Light 1           lt1
+34.5◦ < ITA ≤ 41◦     Intermediate 2    int2
+28◦ < ITA ≤ 34.5◦     Intermediate 1    int1
+19◦ < ITA ≤ 28◦       Tanned 2          tan2
+10◦ < ITA ≤ 19◦       Tanned 1          tan1
+ITA ≤ 10◦             Dark              dark

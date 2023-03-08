@@ -1,0 +1,41 @@
+{
+  "very_lt": {
+    "Skin Tone": "Very Light",
+    "Cutoffs": [55, null]
+  },
+
+  "lt2": {
+    "Skin Tone": "Light 2",
+    "Cutoffs": [48, 55]
+  },
+
+  "lt1": {
+    "Skin Tone": "Light 1",
+    "Cutoffs": [41, 48]
+  },
+
+  "int2": {
+    "Skin Tone": "Intermediate 2",
+    "Cutoffs": [34.5, 41]
+  },
+
+  "int1": {
+    "Skin Tone": "Intermediate 1",
+    "Cutoffs": [28, 34.5]
+  },
+
+  "tan2": {
+    "Skin Tone": "Tanned 2",
+    "Cutoffs": [19, 28]
+  },
+
+  "tan1": {
+    "Skin Tone": "Tanned 1",
+    "Cutoffs": [10, 19]
+  },
+
+  "dark": {
+    "Skin Tone": "Dark",
+    "Cutoffs": [null, 10]
+  }
+}
