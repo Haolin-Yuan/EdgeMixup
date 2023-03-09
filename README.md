@@ -22,3 +22,33 @@ The classification dataset has 2,712 samples, and we annotate those skin images 
 1. [Segmentation dataset](https://anonymfile.com/7P2Xb/03-032023.zip)
 
 2. [Classification dataset](https://anonymfile.com/bVzrd/lyme-data.zip)
+
+
+# How to run segmentation:
+1. Regenerating Train, Validation, and Test Splits
+    ```python train_segmentation_model.py --regenerate-splits```
+2. Train segmentation model
+    ```python train_segmentation_model.py --train```
+3. Evaluate segmentation model
+    ```python train_segmentation_model.py --test```
+4. Generate segmentation masks for all splits
+    ```python train_segmentation_model.py --plot-all```
+
+![Segmentation Results](segmentation_results.png)
+
+
+# How to run disease classification
+1. Generate segmentation masks for the classification images calculate the image's ITA, and clean the data splits.
+    ```python classify_disease.py --generate-masks```
+2. Train a model:
+    1. Image only model: ```python classify_disease.py --train --model-type baseline```
+    2. Image with adversarial debias model: ```python classify_disease.py --train --model-type AD```
+    3. Masked images model: ```python classify_disease.py --train --model-type masked```
+    4. Masked images with adversarial debias model: ```python classify_disease.py --train --model-type masked+AD```
+3. Evaluate a model:
+    1. Image only model: ```python classify_disease.py --test --model-type baseline```
+    2. Image with adversarial debias model: ```python classify_disease.py --test --model-type AD```
+    3. Masked images model: ```python classify_disease.py --test --model-type masked```
+    4. Masked images with adversarial debias model: ```python classify_disease.py --test --model-type masked+AD``
+
+![Cls Results](classification_results.png)
