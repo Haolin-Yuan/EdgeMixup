@@ -17,7 +17,7 @@ from disease_classification.metrics import evaluate_performance_metrics
 import disease_classification.clf_config as cfg
 
 import pdb
-
+from edge_mixup_util import *
 
 def requires_grad(model, flag=True):
     for p in model.parameters():
@@ -96,17 +96,25 @@ def validate_model(train_AD, dataloader, model, criterion_model, device, early_s
 
 
 def train_model(args):
-    datasets = load_clean_splits(args.model_type, args.edgemixup)
-    dataloader = {
-        dataset_type: DataLoader(
-            dataset=datasets[dataset_type],
-            batch_size=cfg.CLF_BATCH_SIZE,
-            num_workers=cpu_count(),
-            pin_memory=False, # This dataset is small, no need
-            drop_last=True,
-            shuffle=True
-        ) for dataset_type in ['train', 'val']
-    }
+    if args.edgemixup:
+        generate_edgemixup_class_data()
+    if args.aux_model:
+        print("***********************Training extra model*********************")
+        train_loader,val_loader,_ = get_AUX_training_data()
+        dataloader = {"train":train_loader, "val":val_loader}
+    else:
+        datasets = load_clean_splits(args.model_type, args.edgemixup)
+        dataloader = {
+            dataset_type: DataLoader(
+                dataset=datasets[dataset_type],
+                batch_size=cfg.CLF_BATCH_SIZE,
+                num_workers=cpu_count(),
+                pin_memory=False, # This dataset is small, no need
+                drop_last=True,
+                shuffle=True
+            ) for dataset_type in ['train', 'val']
+        }
+
 
     device = T.device(f"cuda:{args.gpu}" if T.cuda.is_available() else "cpu")
     print(f"Training with device {device}")
@@ -229,25 +237,33 @@ def train_model(args):
                 'adv_optimizer': adv_optimizer.state_dict() if train_AD else None,
                 'adv_scheduler': adv_scheduler.state_dict() if train_AD else None
             }
-    weights_dir = str(cfg.CLF_OUTPUT_DIR / f'{args.model_type}_best_model.pt')
+    if args.aux_model:
+        weights_dir = str(cfg.AUX_MODEL_DIR/f'{args.model_type}_best_model.pt')
+    else:
+        weights_dir = str(cfg.CLF_OUTPUT_DIR / f'{args.model_type}_best_model.pt')
     T.save(best_weights, weights_dir)
     print(f"{weights_dir}")
 
 def eval_model(args):
     device = T.device(f"cuda:{args.gpu}" if T.cuda.is_available() else "cpu")
-    datasets = load_clean_splits(args.model_type)
-    dataloader = {
-        dataset_type: DataLoader(
-            dataset=datasets[dataset_type],
-            batch_size=cfg.CLF_BATCH_SIZE,
-            num_workers=cpu_count(),
-            pin_memory=False, # This dataset is small, no need
-            drop_last=False,
-            shuffle=False
-        ) for dataset_type in ['test']
-    }
-
-    weights_dir = str(cfg.CLF_OUTPUT_DIR / f'{args.model_type}_best_model.pt')
+    if args.aux_model:
+        print("***********************Test extra model*********************")
+        _,_, test_loader = get_AUX_training_data()
+        dataloader = {"test":test_loader}
+        weights_dir = str(cfg.AUX_MODEL_DIR / f'{args.model_type}_best_model.pt')
+    else:
+        datasets = load_clean_splits(args.model_type)
+        dataloader = {
+            dataset_type: DataLoader(
+                dataset=datasets[dataset_type],
+                batch_size=cfg.CLF_BATCH_SIZE,
+                num_workers=cpu_count(),
+                pin_memory=False, # This dataset is small, no need
+                drop_last=False,
+                shuffle=False
+            ) for dataset_type in ['test']
+        }
+        weights_dir = str(cfg.CLF_OUTPUT_DIR / f'{args.model_type}_best_model.pt')
     weights = T.load(weights_dir, map_location=device)
     model = resnet34(pretrained=True) # Default pretrained is imagenet
     model.fc = Linear(512, len(cfg.CLF_Label_Translate.keys()))
@@ -288,81 +304,82 @@ def eval_model(args):
     accuracy = correct / num_samples
     print(f"Test loss: {mean_loss} accuracy: {accuracy}")
 
-    npy_all_preds = np.array(all_preds)
-    npy_all_prot_factor = np.array(all_prot_factor)
-    npy_all_lbls = np.array(all_lbls)
+    if not args.aux_model:
+        npy_all_preds = np.array(all_preds)
+        npy_all_prot_factor = np.array(all_prot_factor)
+        npy_all_lbls = np.array(all_lbls)
 
-    gen_eval_debug_plots(npy_all_preds, args.model_type)
+        gen_eval_debug_plots(npy_all_preds, args.model_type)
 
-    results_dict, _ = evaluate_performance_metrics(npy_all_lbls, npy_all_preds, do_print=False)
-    subset_indices_dict = {}
-    subset_indices_dict['p0'] = np.where(npy_all_prot_factor == 0)[0]
-    subset_indices_dict['p1'] = np.where(npy_all_prot_factor == 1)[0]
-    subset_indices_dict['p0_t0'] = np.where(np.logical_and(npy_all_prot_factor == 0, npy_all_lbls == 0))[0]
-    subset_indices_dict['p0_t1'] = np.where(np.logical_and(npy_all_prot_factor == 0, npy_all_lbls == 1))[0]
-    subset_indices_dict['p1_t0'] = np.where(np.logical_and(npy_all_prot_factor == 1, npy_all_lbls == 0))[0]
-    subset_indices_dict['p1_t1'] = np.where(np.logical_and(npy_all_prot_factor == 1, npy_all_lbls == 1))[0]
+        results_dict, _ = evaluate_performance_metrics(npy_all_lbls, npy_all_preds, do_print=False)
+        subset_indices_dict = {}
+        subset_indices_dict['p0'] = np.where(npy_all_prot_factor == 0)[0]
+        subset_indices_dict['p1'] = np.where(npy_all_prot_factor == 1)[0]
+        subset_indices_dict['p0_t0'] = np.where(np.logical_and(npy_all_prot_factor == 0, npy_all_lbls == 0))[0]
+        subset_indices_dict['p0_t1'] = np.where(np.logical_and(npy_all_prot_factor == 0, npy_all_lbls == 1))[0]
+        subset_indices_dict['p1_t0'] = np.where(np.logical_and(npy_all_prot_factor == 1, npy_all_lbls == 0))[0]
+        subset_indices_dict['p1_t1'] = np.where(np.logical_and(npy_all_prot_factor == 1, npy_all_lbls == 1))[0]
 
-    results_sf0, _ = evaluate_performance_metrics(npy_all_lbls[subset_indices_dict['p0']], npy_all_preds[subset_indices_dict['p0']], do_print=False)
-    results_sf1, _ = evaluate_performance_metrics(npy_all_lbls[subset_indices_dict['p1']], npy_all_preds[subset_indices_dict['p1']], do_print=False)
+        results_sf0, _ = evaluate_performance_metrics(npy_all_lbls[subset_indices_dict['p0']], npy_all_preds[subset_indices_dict['p0']], do_print=False)
+        results_sf1, _ = evaluate_performance_metrics(npy_all_lbls[subset_indices_dict['p1']], npy_all_preds[subset_indices_dict['p1']], do_print=False)
 
-    # Baseline Metrics: TODO: updated this with unmasked
-    '''
-    baseline_acc = 85.10 (4.02)
-    baseline_acc_gap = 13.15 (12.98)
-    baseline_auc = 0.9725 (0.0185)
-    baseline_auc_gap = 0.0331 (0.0714)
-    '''
+        # Baseline Metrics: TODO: updated this with unmasked
+        '''
+        baseline_acc = 85.10 (4.02)
+        baseline_acc_gap = 13.15 (12.98)
+        baseline_auc = 0.9725 (0.0185)
+        baseline_auc_gap = 0.0331 (0.0714)
+        '''
 
-    baseline_acc = 85.10
-    baseline_acc_gap = 13.15
-    baseline_auc = 0.9725
-    baseline_auc_gap = 0.0331
+        baseline_acc = 85.10
+        baseline_acc_gap = 13.15
+        baseline_auc = 0.9725
+        baseline_auc_gap = 0.0331
 
-    print("==================================================")
-    print(f" Model Type: {args.model_type}")
-    print("==================================================")
-    # Compute Metrics
-    metric = 'Accuracy'
-    print(f"{metric}\t{results_dict[metric][0][0]:.2f} ({results_dict[metric][0][1]:.2f})")
-    gap = abs(results_sf0[metric][0][0] - results_sf1[metric][0][0])
-    gap_error = abs(results_sf0[metric][0][1] - results_sf1[metric][0][1])
-    print(f"{metric} Gap \t{gap:.2f} ({gap_error:.2f})")
-    metric_min = 0
-    metric_min_class = ""
-    if results_sf0[metric][0][0] < results_sf1[metric][0][0]:
-            metric_min = results_sf0[metric][0][0]
-            metric_min_class = "ds"
-    else:
-            metric_min = results_sf1[metric][0][0]
-            metric_min_class = "ls"
-    print(f"{metric} min \t{metric_min:.2f} ({metric_min_class})")
-    # CAI
-    metric_alpha = 0.5
-    cai = metric_alpha * (baseline_acc_gap - gap) + (1.0 - metric_alpha) * (results_dict[metric][0][0] - baseline_acc)
-    print(f"CAI [{metric_alpha}]\t{cai:.4f}")
-    metric_alpha = 0.75
-    cai = metric_alpha * (baseline_acc_gap - gap) + (1.0 - metric_alpha) * (results_dict[metric][0][0] - baseline_acc)
-    print(f"CAI [{metric_alpha}]\t{cai:.4f}")
+        print("==================================================")
+        print(f" Model Type: {args.model_type}")
+        print("==================================================")
+        # Compute Metrics
+        metric = 'Accuracy'
+        print(f"{metric}\t{results_dict[metric][0][0]:.2f} ({results_dict[metric][0][1]:.2f})")
+        gap = abs(results_sf0[metric][0][0] - results_sf1[metric][0][0])
+        gap_error = abs(results_sf0[metric][0][1] - results_sf1[metric][0][1])
+        print(f"{metric} Gap \t{gap:.2f} ({gap_error:.2f})")
+        metric_min = 0
+        metric_min_class = ""
+        if results_sf0[metric][0][0] < results_sf1[metric][0][0]:
+                metric_min = results_sf0[metric][0][0]
+                metric_min_class = "ds"
+        else:
+                metric_min = results_sf1[metric][0][0]
+                metric_min_class = "ls"
+        print(f"{metric} min \t{metric_min:.2f} ({metric_min_class})")
+        # CAI
+        metric_alpha = 0.5
+        cai = metric_alpha * (baseline_acc_gap - gap) + (1.0 - metric_alpha) * (results_dict[metric][0][0] - baseline_acc)
+        print(f"CAI [{metric_alpha}]\t{cai:.4f}")
+        metric_alpha = 0.75
+        cai = metric_alpha * (baseline_acc_gap - gap) + (1.0 - metric_alpha) * (results_dict[metric][0][0] - baseline_acc)
+        print(f"CAI [{metric_alpha}]\t{cai:.4f}")
 
-    metric = 'AUC'
-    print(f"{metric}\t\t{results_dict[metric][0][0]:.4f} ({results_dict[metric][0][1]:.4f})")
-    gap = abs(results_sf0[metric][0][0] - results_sf1[metric][0][0])
-    gap_error = abs(results_sf0[metric][0][1] - results_sf1[metric][0][1])
-    print(f"{metric} Gap \t{gap:.4f} ({gap_error:.4f})")
-    metric_min = 0
-    metric_min_class = ""
-    if results_sf0[metric][0][0] < results_sf1[metric][0][0]:
-            metric_min = results_sf0[metric][0][0]
-            metric_min_class = "ds"
-    else:
-            metric_min = results_sf1[metric][0][0]
-            metric_min_class = "ls"
-    print(f"{metric} min \t{metric_min:.4f} ({metric_min_class})")
-    # CAUCI
-    metric_alpha = 0.5
-    cauci = metric_alpha * (baseline_auc_gap - gap) + (1.0 - metric_alpha) * (results_dict[metric][0][0] - baseline_auc)
-    print(f"CAUCI [{metric_alpha}]\t{cauci:4f}")
-    metric_alpha = 0.75
-    cauci = metric_alpha * (baseline_auc_gap - gap) + (1.0 - metric_alpha) * (results_dict[metric][0][0] - baseline_auc)
-    print(f"CAUCI [{metric_alpha}]\t{cauci:4f}")
+        metric = 'AUC'
+        print(f"{metric}\t\t{results_dict[metric][0][0]:.4f} ({results_dict[metric][0][1]:.4f})")
+        gap = abs(results_sf0[metric][0][0] - results_sf1[metric][0][0])
+        gap_error = abs(results_sf0[metric][0][1] - results_sf1[metric][0][1])
+        print(f"{metric} Gap \t{gap:.4f} ({gap_error:.4f})")
+        metric_min = 0
+        metric_min_class = ""
+        if results_sf0[metric][0][0] < results_sf1[metric][0][0]:
+                metric_min = results_sf0[metric][0][0]
+                metric_min_class = "ds"
+        else:
+                metric_min = results_sf1[metric][0][0]
+                metric_min_class = "ls"
+        print(f"{metric} min \t{metric_min:.4f} ({metric_min_class})")
+        # CAUCI
+        metric_alpha = 0.5
+        cauci = metric_alpha * (baseline_auc_gap - gap) + (1.0 - metric_alpha) * (results_dict[metric][0][0] - baseline_auc)
+        print(f"CAUCI [{metric_alpha}]\t{cauci:4f}")
+        metric_alpha = 0.75
+        cauci = metric_alpha * (baseline_auc_gap - gap) + (1.0 - metric_alpha) * (results_dict[metric][0][0] - baseline_auc)
+        print(f"CAUCI [{metric_alpha}]\t{cauci:4f}")

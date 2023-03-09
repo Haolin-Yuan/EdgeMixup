@@ -14,6 +14,7 @@ def create_arg_parser():
     parser.add_argument("--model-type", type=str, default="baseline", help="Model type to train/test. Options: baseline (default), masked, masked+AD, AD")
     parser.add_argument("--gpu", type=str, default="0", help="GPU number.")
     parser.add_argument("--edgemixup", default=False, description="set True to deploy EdgeMixup")
+    parser.add_argument("--aux_model", default= False, description = "train an auxiliary model to help choose optimal mask")
     return parser
 
 def main():

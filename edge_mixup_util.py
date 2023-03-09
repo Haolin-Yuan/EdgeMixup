@@ -197,7 +197,7 @@ def mean_color_mask(path, HSV_threshold, RGB_threshold):
     return img_list[0], img_list[1]
 
 
-class Extra_Dataset(T.utils.data.Dataset):
+class Aux_Dataset(T.utils.data.Dataset):
     def __init__(self, df):
         self.df = df
         self.images = self.df["images"]
@@ -206,7 +206,7 @@ class Extra_Dataset(T.utils.data.Dataset):
         self.transform = transforms.Compose([
             transforms.ToTensor(),
             # SD-198
-            transforms.Normalize((8.6501e-06,  1.3031e-04,  2.3714e-05), (1.0001, 0.9997, 1.0001))
+            # transforms.Normalize((8.6501e-06,  1.3031e-04,  2.3714e-05), (1.0001, 0.9997, 1.0001))
         ])
     def __getitem__(self, item):
         img_fn = self.images[item]
@@ -224,200 +224,38 @@ class Extra_Dataset(T.utils.data.Dataset):
     def __len__(self):
         return len(self.images)
 
-def get_training_data():
-    # list = []
-    # # for i in ["train", "val", "test"]:
-    # #     df = pd.read_csv(f"01_06_2021/{i}.csv").copy()
-    # #     df = df.sample(frac=1, random_state=42).reset_index(drop=True)
-    # #     df = df.drop(["gt_binary_skintone"], axis = 1)
-    # #     df.insert(loc = 1, column = "label", value = 0)
-    # #     for row in range(len(df.index)):
-    # #         if "EM" in df["images"][row]:
-    # #             df["label"][row] = 1
-    # #         elif "HZ" in df["images"][row]:
-    # #             df["label"][row] = 2
-    # #         elif "TC" in df["images"][row]:
-    # #             df["label"][row] = 3
-    # #     df.to_csv(f"extra_model/{i}_set.csv")
-    # #     list.append(df)
-    # # For Sd-198
-    # # create label_dict
-    # root = "/home/haolin/Projects/lyme/media/HDD1/SD-198_5_seg/"
-    # label_dict = {}
-    # for i, name in enumerate(os.listdir(root)): label_dict[f'{name}']= i
-    # for i in ["train", "val", "test"]:
-    #     df = pd.read_csv(f"/home/haolin/Projects/lyme/code/sd-198_assets/segmentation/reduced_5/{i}.csv").copy()
-    #     df = df.sample(frac=1, random_state=42).reset_index(drop=True)
-    #     df = df.drop(["gt_binary_skintone"], axis = 1)
-    #     df.insert(loc = 1, column = "label", value = 0)
-    #     for row in range(len(df.index)):
-    #         df["label"][row] = label_dict[df["images"][row].split('/')[-3]]
-    #     df.to_csv(f"/home/haolin/Projects/lyme/code/extra_model/SD-198_reduced_5/{i}_set.csv")
-    #     list.append(df)
+def get_AUX_training_data():
+    list = []
+    root = cfg.ROOT_DATA_DIR
+    label_dict = {}
+    cfg.AUX_DATA_DIR
+    for i, name in enumerate(os.listdir(root)): label_dict[f'{name}']= i
+    for i in ["train", "val", "test"]:
+        df = pd.read_csv(str(root/i)+".csv").copy()
+        df = df.sample(frac=1, random_state=42).reset_index(drop=True)
+        df = df.drop(["gt_binary_skintone"], axis = 1)
+        df.insert(loc = 1, column = "label", value = 0)
+        for row in range(len(df.index)):
+            df["label"][row] = label_dict[df["images"][row].split('/')[-3]]
+        df.to_csv(f"/home/haolin/Projects/lyme/code/extra_model/SD-198_reduced_5/{i}_set.csv")
+        list.append(df)
 
-    train_df = pd.read_csv("/home/haolin/Projects/lyme/code/extra_model/SD-198_reduced_5/train_set.csv")
-    val_df = pd.read_csv("/home/haolin/Projects/lyme/code/extra_model/SD-198_reduced_5/val_set.csv")
-    test_df = pd.read_csv("/home/haolin/Projects/lyme/code/extra_model/SD-198_reduced_5/test_set.csv")
-
-    train_loader = DataLoader(Extra_Dataset(train_df), batch_size=8, num_workers=1, pin_memory=False)
-    val_loader = DataLoader(Extra_Dataset(val_df), batch_size=8, num_workers=1, pin_memory=False)
-    test_loader = DataLoader(Extra_Dataset(test_df), batch_size=8, num_workers=1, pin_memory=False)
+    train_loader = DataLoader(Aux_Dataset(list[0]), batch_size=8, num_workers=1, pin_memory=False)
+    val_loader = DataLoader(Aux_Dataset(list[1]), batch_size=8, num_workers=1, pin_memory=False)
+    test_loader = DataLoader(Aux_Dataset(list[2]), batch_size=8, num_workers=1, pin_memory=False)
     return train_loader, val_loader, test_loader
-
-def train_model():
-    print("***********************Training extra model*********************")
-    train_loader, val_loader, _ = get_training_data()
-    device = T.device("cuda:0" if T.cuda.is_available() else "cpu")
-    print(f"Training with device {device}")
-
-    # Default RestNet34
-    model = resnet34(weights=ResNet34_Weights.DEFAULT)
-    model.fc = Linear(512, 5)
-    model = model.to(device)
-
-    criterion_model = CrossEntropyLoss()
-    optimizer = Adam(model.parameters(), lr=3e-4)
-    scheduler = lr_scheduler.ReduceLROnPlateau(
-        optimizer,
-        mode="min",
-        factor=cfg.CLF_LR_STEP_FACTOR,
-        patience=cfg.CLF_LR_SCHEDULER_PATIENCE)
-
-    best_weights = {}
-    lowest_val_loss = 9.e9
-    early_stop_cnt = 0
-    last_loss = 0
-    pbar = trange(300)
-
-    for epoch in pbar:
-        total_loss = 0.0
-        loss = 0.0
-        num_samples = 0.0
-        correct = 0
-        model.train()
-
-        for imgs, labels in train_loader:
-            num_samples += labels.shape[0]
-            imgs = imgs.to(device)
-            labels = labels.to(device)
-            preds = model(imgs)
-            max_preds = softmax(preds, dim=-1).argmax(1).unsqueeze(-1)
-            correct += max_preds.eq(labels.view_as(max_preds)).sum().cpu()
-            loss = criterion_model(preds, labels)
-            total_loss += loss.cpu().detach()
-            model.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-        last_loss = loss.detach().cpu()
-
-        early_stop_cnt, prev_val_loss, prev_adv_val_loss, lowest_val_loss = validate_model(
-            val_loader,
-            model,
-            criterion_model,
-            device,
-            early_stop_cnt,
-            lowest_val_loss)
-
-        pbar.set_description(
-            f"Training Acc: {(correct/num_samples):4} Training loss: {(total_loss / num_samples):4}  Validation loss: {lowest_val_loss:4}")
-        if early_stop_cnt == 1:
-            best_epoch = epoch
-            best_weights = {
-                'epoch': best_epoch,
-                'model': model.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'scheduler': scheduler.state_dict(),
-                'loss': last_loss,
-            }
-        scheduler.step(prev_val_loss)
-        if early_stop_cnt >= 15:
-            print(f"Early Stopping {epoch}")
-            break
-
-    if early_stop_cnt == 0:
-        best_epoch = cfg.CLF_NUM_EPOCHS
-        best_weights = {
-            'epoch': best_epoch,
-            'model': model.state_dict(),
-            'optimizer': optimizer.state_dict(),
-            'scheduler': scheduler.state_dict(),
-            'loss': last_loss,
-        }
-    weights_dir = str('/home/haolin/Projects/lyme/code/extra_model/SD-198_reduced_5/best_model.pt')
-    T.save(best_weights, weights_dir)
-    print(f"{weights_dir}")
-
-def validate_model(dataloader, model, criterion_model, device, early_stop_cnt, lowest_val_loss):
-    total_val_loss = 0.0
-    total_adv_val_loss = 0.0
-    num_samples = 0.0
-    model.eval()
-
-    with T.no_grad():
-        for content in dataloader:
-            imgs, labels = content
-            num_samples += labels.shape[0]
-            imgs = imgs.to(device)
-            labels = labels.to(device)
-            preds = model(imgs)
-            adv_loss = 0.0
-            loss = criterion_model(preds, labels) - adv_loss
-            total_val_loss += loss.cpu().detach()
-
-    mean_loss = total_val_loss / num_samples
-    mean_adv_loss = total_adv_val_loss / num_samples
-    if mean_loss >= lowest_val_loss:
-        early_stop_cnt += 1
-    else:
-        early_stop_cnt = 0
-        lowest_val_loss = mean_loss
-    return early_stop_cnt, mean_loss, mean_adv_loss, lowest_val_loss
-
-def eval_model():
-    device = T.device("cuda:0" if T.cuda.is_available() else "cpu")
-    _,_,test_loader = get_training_data()
-    weights = T.load('/home/haolin/Projects/lyme/code/extra_model/SD-198_reduced_5/best_model.pt', map_location=device)
-
-    model = resnet34(weights = ResNet34_Weights.DEFAULT)
-    model.fc = Linear(512, 5)
-    model = model.to(device)
-
-    model.load_state_dict(weights['model'])
-    model = model.to(device)
-    criterion_model = CrossEntropyLoss()
-    total_loss, num_samples, correct = 0.0, 0.0, 0.0
-    model.eval()
-    with T.no_grad():
-        for imgs, labels in test_loader:
-            num_samples += labels.shape[0]
-            imgs = imgs.to(device)
-            labels = labels.to(device)
-            preds = model(imgs)
-            model.zero_grad()
-            loss = criterion_model(preds, labels)
-            total_loss += loss.cpu().detach()
-            max_preds = softmax(preds, dim=-1).argmax(1).unsqueeze(-1)
-            correct += max_preds.eq(labels.view_as(max_preds)).sum().cpu()
-
-    mean_loss = total_loss / num_samples
-    accuracy = correct / num_samples
-    print(f"Test loss: {mean_loss} accuracy: {accuracy}")
-
-
-
-def get_aux_model():
 
 
 
 def iterative_train_seg():
+
     pre_J = 0
     current_J = 0
     generate_new_classification_sample(seg_model_path,file_root_path,img_save_path)
 
 
 def generate_edgemixup_class_data():
-    weights = T.load(cfg.aux_model_path, map_location=device)
+    weights = T.load(cfg.AUX_MODEL_DIR, map_location=device)
     model = resnet34(weights=ResNet34_Weights.DEFAULT)
     model.fc = Linear(512, 4)
     model = model.to(device)
