@@ -97,7 +97,7 @@ def create_arg_parser():
     parser.add_argument("--kfold-train", action="store_true", help="Train using KFold.")
     parser.add_argument("--test", action="store_true", help="Test only.")
     parser.add_argument("--plot-all", action="store_true", help="Generate masks for the entire (train+val+test) dataset.")
-    parser.add_argument("--baseline", default=True, description="set false to use EdgeMixup")
+    parser.add_argument("--edgemixup", default=True, description="set true to use EdgeMixup")
     return parser
 
 def main():
@@ -108,7 +108,7 @@ def main():
         generate_splits()
 
     if args.train:
-        train_normal(args.baseline)
+        train_normal(args.edgemixup)
     
     if args.kfold_train:
         train_kfold(num_folds=5)

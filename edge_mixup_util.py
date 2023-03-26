@@ -24,6 +24,7 @@ from tqdm import trange
 from torch.nn.functional import softmax
 from tqdm import tqdm
 from torch.optim import Adam, lr_scheduler
+from skin_segmentation.model_utils import make_mask_usable, predict_mask
 
 device = T.device("cuda:0" if T.cuda.is_available() else "cpu")
 
@@ -64,22 +65,31 @@ def getHsvMask(path):
     return img
 
 
-def generate_image_boundary_based_on_GT_label(df, folder_path):
-    save_root = folder_path + "/image/"
-    os.makedirs(save_root, exist_ok= True)
+
+def add_segment_boundary(df, save_root, test_model_path):
+    os.makedirs(os.path.dirname(save_root), exist_ok=True)
     alpha = 0.7
     save_df = df.copy()
     for i in tqdm(range(len(df.index))):
         img_path = df["images"][i]
-        img = cv2.imread(img_path)
         img_name = Path(img_path).name
-        mask = get_mask_from_json(img_path, df["target_masks"][i])
-        gt_boundary = cv2.Canny(mask, 100, 200)
-        gt_boundary = T.from_numpy(gt_boundary).unsqueeze(2).repeat(1, 1, 3).numpy().astype(np.uint8)
-        final_img = (alpha * img + (1 - alpha) * gt_boundary).astype(np.uint8)
+        img_name = ".".join(img_name.split(".")[::len(img_name.split("."))-1])
+        save_df["images"][i] = save_root +img_name
+        img  = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
+        original_size = img.shape[1::-1]
+        img = cv2.resize(img, (256, 256))
+        pure_img = img.copy()
+        _, model_pred = predict_mask(img, model_path=test_model_path)
+        pr_mask = make_mask_usable(model_pred)
+        pr_mask = np.where(pr_mask == 1, 255, 0)
+        pr_mask = cv2.Canny(np.uint8(pr_mask), 100, 200)
+        pr_mask = T.from_numpy(pr_mask).unsqueeze(2).repeat(1, 1, 3).numpy().astype(np.uint8)
+        final_img = (alpha * pure_img + (1 - alpha) * pr_mask).astype(np.uint8)
+        final_img = cv2.cvtColor(final_img, cv2.COLOR_RGB2BGR)
+        # final_img = cv2.resize(final_img, original_size)
         cv2.imwrite(save_root + img_name, final_img)
-        save_df["images"][i] = save_root + img_name
-    save_df.to_csv(folder_path + "/train.csv", index=False)
+    # save_df.to_csv(csv_root, index = False)
+    return save_df
 
 
 
@@ -128,11 +138,6 @@ def generate_new_classification_sample(seg_model_path,file_root_path,img_save_pa
         return df_2
 
 
-seg_model_path = "/home/haolin/Projects/lyme/code/skin_segmentation/segmentation_runs/fitz17k_iter_1/best_model.h5"
-file_root_path = "/home/haolin/Projects/lyme/code/fitzpatrick17k/clf_assets/processed_splits"
-img_save_path = "/home/haolin/Projects/lyme/code/fitzpatrick17k/clf_assets/egded_iter_1_fitz17k/"
-
-
 
 def general_lesion_color(df):
     # if not os.path.exists(save_path): os.makedirs(save_path)
@@ -153,21 +158,9 @@ def general_lesion_color(df):
             RGB_threshold[0][i] += RGB_img[:, :, i][mask[:,:,0]== 255].min()
             RGB_threshold[1][i] += RGB_img[:, :, i][mask[:,:,0]== 255].max()
 
-        # avg_RGB_threshold = (RGB_threshold / (j+1)).round(1)
-        # avg_HSV_threshold = (HSV_threshold / (j+1)).round(1)
     avg_RGB_threshold = (RGB_threshold / len(df.index)).round(1)
     avg_HSV_threshold = (HSV_threshold / len(df.index)).round(1)
 
-        # HSV_mask = cv2.inRange(HSV_img, avg_HSV_threshold[0], avg_HSV_threshold[1])
-        # HSV_mask = T.from_numpy(HSV_mask).unsqueeze(2).repeat(1, 1, 3).numpy().astype(np.uint8)
-        # RGB_mask = cv2.inRange(RGB_img, avg_RGB_threshold[0], avg_RGB_threshold[1])
-        # RGB_mask = T.from_numpy(RGB_mask).unsqueeze(2).repeat(1, 1, 3).numpy().astype(np.uint8)
-        # mask0 = cv2.inRange(HSV_img, np.array([0, 50, 50]), np.array([10, 255, 255]))
-        # mask1 = cv2.inRange(HSV_img, np.array([170, 50, 50]), np.array([180, 255, 255]))
-        # EdgeMixup = mask0 + mask1
-        # EdgeMixup = T.from_numpy(EdgeMixup).unsqueeze(2).repeat(1, 1, 3).numpy().astype(np.uint8)
-        # img = np.hstack((cv2.cvtColor(RGB_img, cv2.COLOR_RGB2BGR), EdgeMixup, cv2.bitwise_not(HSV_mask), cv2.bitwise_not(RGB_mask)))
-        # cv2.imwrite(save_path + f"{img_name}.png", cv2.cvtColor(masked_img, cv2.COLOR_RGB2BGR))
     return avg_RGB_threshold, avg_HSV_threshold
 
 

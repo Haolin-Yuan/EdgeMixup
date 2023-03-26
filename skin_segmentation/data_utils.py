@@ -1,6 +1,6 @@
 # Copyright 2021-2022, The Johns Hopkins University Applied Physics Laboratory LLC
 # All rights reserved.
-
+import os.path
 import sys
 sys.path.append("..")
 from pathlib import Path
@@ -449,6 +449,13 @@ def load_splits(split=True, return_raw_imgs=False, edgemixup=False):
     train_df = pd.read_csv(str(cfg.DATA_ASSETS_DIR / 'train.csv'))
     val_df = pd.read_csv(str(cfg.DATA_ASSETS_DIR / 'val.csv'))
     test_df = pd.read_csv(str(cfg.DATA_ASSETS_DIR / 'test.csv'))
+
+    if edgemixup and os.path.exists(cfg.MODEL_PATH):
+        # start from second iteration
+        train_df = add_segment_boundary(train_df, cfg.Iter_root, cfg.MODEL_PATH)
+        val_df = add_segment_boundary(val_df, cfg.Iter_root, cfg.MODEL_PATH)
+        test_df = add_segment_boundary(test_df, cfg.Iter_root, cfg.MODEL_PATH)
+
 
     if not split:
         im_paths = train_df['images'].to_list() + val_df['images'].to_list() + test_df['images'].to_list()

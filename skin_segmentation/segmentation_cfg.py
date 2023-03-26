@@ -24,3 +24,6 @@ METRIC_BETA = 1.0
 # Loss Terms
 DICE_LOSS_WEIGHTS = np.array([0.5, 2, 1]) # BG, LESION, SKIN
 FOCAL_LOSS_WEIGHTS = np.array([0.15, 0.5, 0.35]) # BG, LESION, SKIN, must sum to 1.0
+
+# EdgeMixup
+Iter_root = ""
