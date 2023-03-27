@@ -145,13 +145,12 @@ def test_model(test_set, output_dir, batch_size=cfg.BATCH_SIZE):
                                                     'iou_score':sm.metrics.IOUScore(threshold=0.5),
                                                     f"f{int(cfg.METRIC_BETA)}-score":sm.metrics.FScore(threshold=0.5)})
     model.run_eagerly = True
-    
     scores = model.evaluate(test_loader, use_multiprocessing=True, workers=multiprocessing.cpu_count())
     
     j_scores, dice_scores = [], []
     j_score_conf_intervals, dice_conf_intervals = [], []
     for data in test_loader:
-        pred = model.predict(data, use_multiprocessing=True, workers=multiprocessing.cpu_count())
+        pred = model.predict(data[0], use_multiprocessing=True, workers=multiprocessing.cpu_count())
         
         j_scores.append(jaccard_score(
                 y_true=data[1].reshape(-1, len(cfg.Label)),

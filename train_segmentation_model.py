@@ -71,11 +71,13 @@ def train_normal(mode):
     hist = train_model(train_set, val_set, BATCH_SIZE, BACKBONE, EPOCHS, LR, MODEL_PATH)
     # plot_history(hist, OUTPUT_DIR)
 
-def test():
-    _, _, test_set = load_splits()
+def test(mode):
+    _, _, test_set = load_splits(edgemixup=mode)
     scores, names = test_model(test_set, OUTPUT_DIR, BATCH_SIZE)
     
     scores_dict = {key: [] for key in names[1:]}
+    print("-"*10)
+    print(scores_dict)
     for metric, val in zip(list(scores_dict.keys()), scores[1:]):
         print(f"{metric}: {val}\n")
         scores_dict[metric].append(val)
@@ -83,8 +85,19 @@ def test():
     scores_df = pd.DataFrame(scores_dict)
     scores_df.to_csv(str(OUTPUT_DIR / 'scores.csv'), columns=scores_df.columns, index=False)
 
-    _, _, test_set = load_splits(split=True, return_raw_imgs=True)
-    plot_images_w_masks(test_set, MODEL_PATH, OUTPUT_DIR, num_plots='all', save_plots=True)
+    # _, _, test_set = load_splits(split=True, return_raw_imgs=True)
+    # plot_images_w_masks(test_set, MODEL_PATH, OUTPUT_DIR, num_plots='all', save_plots=True)
+    return scores_dict["jaccard_score"]
+
+def train_iterative():
+    J_score = [0,0]
+    while J_score[-1]>= J_score[-2]:
+        train_normal(mode=flag)
+        new_J = test(mode=flag)
+        J_score.append(new_J)
+        print(f"Last iteration Jaccard: {J_score[-2]}, Current iteration Jaccard:{J_score[-1]}")
+    print(f"Iteration training stopped, {len(J_score)-2} iterations have been trained, last iteration jaccard:{J_score[-1]}")
+
 
 def plot_all():
     all_set = load_splits(split=False, return_raw_imgs=True)
@@ -98,6 +111,7 @@ def create_arg_parser():
     parser.add_argument("--test", action="store_true", help="Test only.")
     parser.add_argument("--plot-all", action="store_true", help="Generate masks for the entire (train+val+test) dataset.")
     parser.add_argument("--edgemixup", default=False, help="set true to use EdgeMixup")
+    parser.add_argument("--iterative", action="store_true", help="iteratively train the segmentation model")
     return parser
 
 def main():
@@ -114,10 +128,13 @@ def main():
         train_kfold(num_folds=5)
             
     if args.test:
-        test()
+        test(args.edgemixup)
     
     if args.plot_all:
         plot_all()
+
+    if args.iterative:
+        train_iterative()
 
 
 if __name__=='__main__':
