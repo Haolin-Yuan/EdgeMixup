@@ -16,7 +16,7 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint
 from sklearn.utils import shuffle
 from sklearn.model_selection import KFold
 import segmentation_models as sm
-from lyme_segmentation.config import Label
+# from lyme_segmentation.config import Label
 import skin_segmentation.segmentation_cfg as cfg
 from skin_segmentation.data_utils import Dataset, DataLoader, randomly_flip_image, ITADataLoader
 from skin_segmentation.metrics_utils import JaccardScore, DICEScore
@@ -80,8 +80,8 @@ def train_model(train_set, val_set, batch_size, backbone, epochs, lr, model_path
 
     model, callbacks, _ = create_model(backbone, model_path, lr=lr)
 
-    if cfg.RETURN_SUMMARY:
-        model.summary()
+    # if cfg.RETURN_SUMMARY:
+    #     model.summary()
 
     if not cfg.OUTPUT_DIR.exists():
         cfg.OUTPUT_DIR.mkdir()

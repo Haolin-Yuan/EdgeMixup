@@ -6,8 +6,13 @@ from config import *
 import numpy as np
 
 RANDOM_STATE = 2020
-IMG_ROOT_DIRS = None # [d / 'img' for d in ROOT_DATA_DIR.iterdir() if d.is_dir()]
-MASK_JSON_DIRS = None # [d / 'ann' for d in ROOT_DATA_DIR.iterdir() if d.is_dir()]
+#
+IMG_RETRIVAL_DATESTAMP = "01_06_2021"
+ROOT_DATA_DIR = Path(f"/home/haolin/Projects/lyme/lyme_segmentation_data/{IMG_RETRIVAL_DATESTAMP}")
+OUTPUT_DIR = Path("/home/haolin/Projects/lyme/code/skin_segmentation/segmentation_runs/test")
+#
+IMG_ROOT_DIRS = [d / 'img' for d in ROOT_DATA_DIR.iterdir() if d.is_dir()]
+MASK_JSON_DIRS =  [d / 'ann' for d in ROOT_DATA_DIR.iterdir() if d.is_dir()]
 MODEL_PATH = OUTPUT_DIR / 'best_model.h5'
 DATA_ASSETS_DIR = Path(".") / str(ROOT_DATA_DIR).split("/")[-1]
 SPLIT_PERCENTAGES = {'train': .65, 'val': .15, 'test': .20}

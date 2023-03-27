@@ -20,7 +20,7 @@ import keras
 import tensorflow as tf
 from keras import backend as K
 
-from lyme_segmentation.config import Label
+# from lyme_segmentation.config import Label
 import skin_segmentation.segmentation_cfg as cfg
 from skin_segmentation.model_utils import predict_mask, split_mask, make_mask_usable
 from skin_segmentation.data_utils import bounded_decision_function

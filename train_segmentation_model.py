@@ -69,7 +69,7 @@ def train_kfold(num_folds):
 def train_normal(mode):
     train_set, val_set, _ = load_splits(edgemixup=mode)
     hist = train_model(train_set, val_set, BATCH_SIZE, BACKBONE, EPOCHS, LR, MODEL_PATH)
-    plot_history(hist, OUTPUT_DIR)
+    # plot_history(hist, OUTPUT_DIR)
 
 def test():
     _, _, test_set = load_splits()
@@ -97,7 +97,7 @@ def create_arg_parser():
     parser.add_argument("--kfold-train", action="store_true", help="Train using KFold.")
     parser.add_argument("--test", action="store_true", help="Test only.")
     parser.add_argument("--plot-all", action="store_true", help="Generate masks for the entire (train+val+test) dataset.")
-    parser.add_argument("--edgemixup", default=True, description="set true to use EdgeMixup")
+    parser.add_argument("--edgemixup", default=False, help="set true to use EdgeMixup")
     return parser
 
 def main():
