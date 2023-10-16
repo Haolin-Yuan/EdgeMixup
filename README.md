@@ -52,3 +52,7 @@ The classification dataset has 2,712 samples, and we annotate those skin images 
     4. Masked images with adversarial debias model: ```python classify_disease.py --test --model-type masked+AD``
 
 ![Cls Results](classification_results.png)
+
+# How to run disease classification
+
+1. On Segmentation tasks: ```python train_segmentation_model.py --iterative```
