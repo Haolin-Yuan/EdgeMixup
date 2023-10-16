@@ -27,7 +27,7 @@ from skin_segmentation.data_utils import calc_batch_ITAs, bounded_decision_funct
 from skin_segmentation.model_utils import predict_mask_generator
 import disease_classification.clf_config as cfg
 import sys
-sys.append("../")
+sys.path.append("../")
 from edge_mixup_util import *
 
 

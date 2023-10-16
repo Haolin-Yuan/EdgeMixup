@@ -19,8 +19,7 @@ from tensorflow.keras.applications.resnet50 import preprocess_input
 import albumentations
 from sklearn.utils import shuffle
 from tqdm import tqdm
-import skin_segmentation.segmentation_cfg as cfg 
-
+import skin_segmentation.segmentation_cfg as cfg
 from ita_data.define_ita_bins import get_ita_data
 from edge_mixup_util import *
 
@@ -99,7 +98,7 @@ def bounded_decision_function(model_pred, threshold=.5):
 class Dataset:
     def __init__(self, im_paths, mask_paths=[], mask_json_dirs=cfg.MASK_JSON_DIRS, image_size=(600, 450),
                  augmentations=None, img_preprocessing=None, dataset_type="all", debug=False,
-                 return_raw_imgs=False, edgeMixup = False):
+                 return_raw_imgs=False, edgeMixup = False, iter_training = False):
         self.im_paths = im_paths
         if len(mask_paths) > 0:
             self.mask_paths = mask_paths
@@ -108,7 +107,7 @@ class Dataset:
             if mask_json_dirs is not None:
                 for im_path in im_paths:
                     self.mask_paths.append(Path(str(im_path.parent).replace('img', 'ann') ) / (im_path.stem + '.png.json'))          
-
+        # 256,256
         self.im_w, self.im_h = image_size
         self.aug_funcs = augmentations
         self.img_preproc_funcs = img_preprocessing
@@ -116,13 +115,14 @@ class Dataset:
         self.debug = debug
         self.return_raw_imgs = return_raw_imgs
         self.edgemixup = edgeMixup
+        self.iter = iter_training
 
     def __getitem__(self, item_idx):
         img = cv2.cvtColor(cv2.imread(str(self.im_paths[item_idx])), cv2.COLOR_BGR2RGB)
         orig_shape = img.shape
         img = cv2.resize(img, (self.im_w, self.im_h))
 
-        if self.edgemixup:
+        if self.edgemixup and not self.iter:
             img = getHsvMask(img)
 
         if self.return_raw_imgs:
@@ -446,12 +446,14 @@ def generate_splits():
     
 
 def load_splits(split=True, return_raw_imgs=False, edgemixup=False):
+    iter_training = False
     train_df = pd.read_csv(str(cfg.DATA_ASSETS_DIR / 'train.csv'))
     val_df = pd.read_csv(str(cfg.DATA_ASSETS_DIR / 'val.csv'))
     test_df = pd.read_csv(str(cfg.DATA_ASSETS_DIR / 'test.csv'))
 
     if edgemixup and os.path.exists(cfg.MODEL_PATH):
         # start from second iteration
+        iter_training = True
         train_df = add_segment_boundary(train_df, cfg.Iter_root, cfg.MODEL_PATH)
         val_df = add_segment_boundary(val_df, cfg.Iter_root, cfg.MODEL_PATH)
         test_df = add_segment_boundary(test_df, cfg.Iter_root, cfg.MODEL_PATH)
@@ -485,6 +487,7 @@ def load_splits(split=True, return_raw_imgs=False, edgemixup=False):
         debug=False,
         return_raw_imgs=return_raw_imgs,
         edgeMixup=edgemixup,
+        iter_training = iter_training,
     )
     
     val_set = Dataset(
@@ -496,6 +499,7 @@ def load_splits(split=True, return_raw_imgs=False, edgemixup=False):
         dataset_type='val',
         return_raw_imgs=return_raw_imgs,
         edgeMixup=edgemixup,
+        iter_training=iter_training,
     )
 
     test_set = Dataset(
@@ -507,6 +511,7 @@ def load_splits(split=True, return_raw_imgs=False, edgemixup=False):
         dataset_type='test',
         return_raw_imgs=return_raw_imgs,
         edgeMixup=edgemixup,
+        iter_training=iter_training,
     )
     
     return train_set, val_set, test_set

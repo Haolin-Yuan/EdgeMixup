@@ -21,6 +21,8 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from skin_segmentation.metrics_utils import JaccardScore, DICEScore
 from skin_segmentation.losses import categorical_focal_loss
+# from skin_segmentation.model_utils import *
+# from train_segmentation_model import *
 
 device = T.device("cuda:0" if T.cuda.is_available() else "cpu")
 
@@ -226,10 +228,10 @@ def get_mask_from_json(img_path, mask_json_path):
     return mask
 
 
-def getHsvMask(path):
-    alpha = cfg.alpah
-    ori_img = cv2.resize(cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB), (256, 256))
-    img = cv2.cvtColor(ori_img, cv2.COLOR_BGR2HSV)
+def getHsvMask(img):
+    alpha = cfg.alpha
+    ori_img = img
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
     mask0 = cv2.inRange(img, np.array([0, 50, 50]), np.array([10, 255, 255]))
     mask1 = cv2.inRange(img, np.array([170, 50, 50]), np.array([180, 255, 255]))
     Redmask = mask0 + mask1
@@ -267,6 +269,7 @@ def add_segment_boundary(df, save_root, test_model_path):
         img_name = ".".join(img_name.split(".")[::len(img_name.split("."))-1])
         save_df["images"][i] = save_root +img_name
         img  = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
+        # cv2.resize reverse width and length, thus getting original size by [1::-1]
         original_size = img.shape[1::-1]
         img = cv2.resize(img, (256, 256))
         pure_img = img.copy()
@@ -277,7 +280,7 @@ def add_segment_boundary(df, save_root, test_model_path):
         pr_mask = T.from_numpy(pr_mask).unsqueeze(2).repeat(1, 1, 3).numpy().astype(np.uint8)
         final_img = (alpha * pure_img + (1 - alpha) * pr_mask).astype(np.uint8)
         final_img = cv2.cvtColor(final_img, cv2.COLOR_RGB2BGR)
-        # final_img = cv2.resize(final_img, original_size)
+        final_img = cv2.resize(final_img, original_size)
         cv2.imwrite(save_root + img_name, final_img)
     # save_df.to_csv(csv_root, index = False)
     return save_df
@@ -289,7 +292,7 @@ def generate_new_classification_sample(seg_model_path,file_root_path,img_save_pa
     :param seg_model_path:  the path of saved segmentation model
     :param file_root_path:  path of .csv files for all classification samples
     :param img_save_path:   path for saving new images
-    :return:
+    :return: new df file containing new training sample directory
     '''
     alpha = cfg.alpha
     model = keras.models.load_model(seg_model_path,
@@ -299,33 +302,33 @@ def generate_new_classification_sample(seg_model_path,file_root_path,img_save_pa
                                                     'iou_score': sm.metrics.IOUScore(threshold=0.5),
                                                     f"f{int(cfg.METRIC_BETA)}-score": sm.metrics.FScore(threshold=0.5)})
     index = 0
-    for i in ["train"]:
-        df = pd.read_csv(file_root_path+f"/{i}_processed.csv")
-        df_2 = df.copy()
-        data_set = Dataset(
-            im_paths=df['image'].to_list(),
-            mask_paths=df['pred_mask'].to_list(),
-            image_size= (256,256),
-            img_preprocessing=[preprocess_input],  # Imagenet normalization
-            augmentations=[],
-            dataset_type='test',
-            debug=False,
-            return_raw_imgs=False,
-            edgeMixup=False)
-        test_loader = DataLoader(data_set, batch_size=8, shuffle_every_epoch=False)
-        for (data,_) in tqdm(test_loader):
-            model_pred = model.predict(data)
-            model_pred = np.argmax(model_pred, axis=-1)
-            for j in range(data.shape[0]):
-                pr_mask = model_pred[j]
-                pr_mask = np.where(pr_mask == 1, 255, 0)
-                pr_mask = cv2.Canny(np.uint8(pr_mask), 100, 200)
-                pr_mask = T.from_numpy(pr_mask).unsqueeze(2).repeat(1, 1, 3).numpy().astype(np.uint8)
-                final_img = (alpha * data[j] + (1 - alpha) * pr_mask).astype(np.uint8)
-                final_img = cv2.cvtColor(final_img, cv2.COLOR_BGR2RGB)
-                df_2["image"][index] = img_save_path + f"{id}.png"
-                cv2.imwrite(img_save_path, final_img)
-                index += 1
+
+    df = pd.read_csv(file_root_path+f"/train_processed.csv")
+    df_2 = df.copy()
+    data_set = Dataset(
+        im_paths=df['image'].to_list(),
+        mask_paths=df['pred_mask'].to_list(),
+        image_size= (256,256),
+        img_preprocessing=[preprocess_input],  # Imagenet normalization
+        augmentations=[],
+        dataset_type='test',
+        debug=False,
+        return_raw_imgs=False,
+        edgeMixup=False)
+    test_loader = DataLoader(data_set, batch_size=8, shuffle_every_epoch=False)
+    for data,_ in tqdm(test_loader):
+        model_pred = model.predict(data)
+        model_pred = np.argmax(model_pred, axis=-1)
+        for j in range(data.shape[0]):
+            pr_mask = model_pred[j]
+            pr_mask = np.where(pr_mask == 1, 255, 0)
+            pr_mask = cv2.Canny(np.uint8(pr_mask), 100, 200)
+            pr_mask = T.from_numpy(pr_mask).unsqueeze(2).repeat(1, 1, 3).numpy().astype(np.uint8)
+            final_img = (alpha * data[j] + (1 - alpha) * pr_mask).astype(np.uint8)
+            final_img = cv2.cvtColor(final_img, cv2.COLOR_BGR2RGB)
+            df_2["image"][index] = img_save_path + f"{id}.png"
+            cv2.imwrite(img_save_path, final_img)
+            index += 1
         return df_2
 
 
@@ -389,8 +392,6 @@ class Aux_Dataset(T.utils.data.Dataset):
         self.mask = self.df["target_masks"]
         self.transform = transforms.Compose([
             transforms.ToTensor(),
-            # SD-198
-            # transforms.Normalize((8.6501e-06,  1.3031e-04,  2.3714e-05), (1.0001, 0.9997, 1.0001))
         ])
     def __getitem__(self, item):
         img_fn = self.images[item]
@@ -430,14 +431,6 @@ def get_AUX_training_data():
     return train_loader, val_loader, test_loader
 
 
-
-# def iterative_train_seg():
-#
-#     pre_J = 0
-#     current_J = 0
-#     generate_new_classification_sample(seg_model_path,file_root_path,img_save_path)
-
-
 def generate_edgemixup_class_data():
     weights = T.load(cfg.AUX_MODEL_DIR, map_location=device)
     model = resnet34(weights=ResNet34_Weights.DEFAULT)
@@ -473,6 +466,7 @@ def generate_edgemixup_class_data():
             cv2.imwrite(cfg.EdgeMixup_clf_data +"/" +img_name, img)
             df["images"][i] = cfg.EdgeMixup_clf_data + "/" + img_name
         df.to_csv(str(cfg.EdgeMixup_clf_dir/file))
+
 
 
 
