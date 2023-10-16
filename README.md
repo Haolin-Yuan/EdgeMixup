@@ -1,5 +1,6 @@
 # EdgeMixup
 
+Here is the github repo for paper [EdgeMixup: Embarrassingly Simple Data Alteration to Improve Lyme Disease Lesion Segmentation and Diagnosis Fairness](https://link.springer.com/chapter/10.1007/978-3-031-43901-8_36)
 
  
 There are two datasets: one for segmentation model and one for classification model. 
@@ -56,3 +57,21 @@ The classification dataset has 2,712 samples, and we annotate those skin images 
 # How to run disease classification
 
 1. On Segmentation tasks: ```python train_segmentation_model.py --iterative```
+
+
+# Please cite it if you intend to use our datasets or method.  
+```
+@InProceedings{10.1007/978-3-031-43901-8_36,
+author="Yuan, Haolin
+and Aucott, John
+and Hadzic, Armin
+and Paul, William
+and Villegas de Flores, Marcia
+and Mathew, Philip
+and Burlina, Philippe
+and Cao, Yinzhi",
+title="EdgeMixup: Embarrassingly Simple Data Alteration to Improve Lyme Disease Lesion Segmentation and Diagnosis Fairness",
+booktitle="Medical Image Computing and Computer Assisted Intervention -- MICCAI 2023",
+year="2023"
+}
+```
