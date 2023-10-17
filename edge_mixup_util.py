@@ -21,21 +21,17 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from skin_segmentation.metrics_utils import JaccardScore, DICEScore
 from skin_segmentation.losses import categorical_focal_loss
-# from skin_segmentation.model_utils import *
-# from train_segmentation_model import *
 
 device = T.device("cuda:0" if T.cuda.is_available() else "cpu")
 
 
 def make_mask_usable(model_pred):
     mask = np.argmax(model_pred, axis=-1)
-
     if mask.shape[0] == 1:
         mask = np.squeeze(mask, axis=0)
-
     mask = np.expand_dims(mask, axis=-1)
-
     return mask
+
 def loss_function(num_classes=3):
     def loss(y_true, y_pred):
         dice_loss = sm.losses.DiceLoss(class_weights=cfg.DICE_LOSS_WEIGHTS)(y_true,
@@ -282,7 +278,7 @@ def add_segment_boundary(df, save_root, test_model_path):
         final_img = cv2.cvtColor(final_img, cv2.COLOR_RGB2BGR)
         final_img = cv2.resize(final_img, original_size)
         cv2.imwrite(save_root + img_name, final_img)
-    # save_df.to_csv(csv_root, index = False)
+
     return save_df
 
 
@@ -431,7 +427,11 @@ def get_AUX_training_data():
     return train_loader, val_loader, test_loader
 
 
-def generate_edgemixup_class_data():
+def getting_optimal_edge():
+    '''
+    Choosing an optimal lesion edge as for the first-iteration segmentation training
+    :return:
+    '''
     weights = T.load(cfg.AUX_MODEL_DIR, map_location=device)
     model = resnet34(weights=ResNet34_Weights.DEFAULT)
     model.fc = Linear(512, 4)
@@ -468,5 +468,11 @@ def generate_edgemixup_class_data():
         df.to_csv(str(cfg.EdgeMixup_clf_dir/file))
 
 
+def clean_df(df):
+    for i in range(len(df.index)):
+        if df["images"][i].split(".")[-1] not in ["jpg", "png", "jpeg"]:
+            df = df.drop([i])
+    df = df.reset_index(drop=True)
+    return df
 
 

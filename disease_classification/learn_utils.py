@@ -14,7 +14,7 @@ import numpy as np
 from disease_classification.data_utils import load_clean_splits, gen_eval_debug_plots
 from disease_classification.models import AdvNet
 from disease_classification.metrics import evaluate_performance_metrics
-import disease_classification.clf_config as cfg
+import disease_classification.clf_config as clss_config
 
 import pdb
 from edge_mixup_util import *
@@ -24,7 +24,7 @@ def requires_grad(model, flag=True):
             p.requires_grad = flag
 
 def pretrain_AdvNet(dataloader, device, model, adv_model, adv_criterion, adv_optimizer):
-    pbar = trange(cfg.CLF_NUM_EPOCHS)
+    pbar = trange(clss_config.CLF_NUM_EPOCHS)
     model.train()
     adv_model.train()
     requires_grad(model, False)
@@ -77,7 +77,7 @@ def validate_model(train_AD, dataloader, model, criterion_model, device, early_s
             preds = model(imgs)
             if train_AD:
                 adv_preds = adv_model(preds, labels)
-                adv_loss = adv_criterion(adv_preds, skintone) * cfg.CLF_ADV_LOSS_IMPORTANCE 
+                adv_loss = adv_criterion(adv_preds, skintone) * clss_config.CLF_ADV_LOSS_IMPORTANCE
                 total_adv_val_loss += adv_loss.cpu().detach()
             else:
                 adv_loss = 0.0
@@ -96,22 +96,16 @@ def validate_model(train_AD, dataloader, model, criterion_model, device, early_s
 
 
 def train_model(args):
-    if args.edgemixup:
-        generate_edgemixup_class_data()
     if args.aux_model:
-        print("***********************Training extra model*********************")
+        print("***********************Training the extra model*********************")
         train_loader,val_loader,_ = get_AUX_training_data()
         dataloader = {"train":train_loader, "val":val_loader}
     else:
         datasets = load_clean_splits(args.model_type, args.edgemixup)
         dataloader = {
-            dataset_type: DataLoader(
+            dataset_type: T.utils.data.DataLoader(
                 dataset=datasets[dataset_type],
-                batch_size=cfg.CLF_BATCH_SIZE,
-                num_workers=cpu_count(),
-                pin_memory=False, # This dataset is small, no need
-                drop_last=True,
-                shuffle=True
+                batch_size= clss_config.CLF_BATCH_SIZE
             ) for dataset_type in ['train', 'val']
         }
 
@@ -120,29 +114,29 @@ def train_model(args):
     print(f"Training with device {device}")
 
     model = resnet34(pretrained=True) # Default pretrained is imagenet
-    model.fc = Linear(512, len(cfg.CLF_Label_Translate.keys()))
+    model.fc = Linear(512, len(clss_config.CLF_Label_Translate.keys()))
     model = model.to(device)
 
     criterion_model = CrossEntropyLoss()
-    optimizer = Adam(model.parameters(), lr=cfg.CLF_LR)
+    optimizer = Adam(model.parameters(), lr=clss_config.CLF_LR)
     scheduler = lr_scheduler.ReduceLROnPlateau(
         optimizer,
         mode="min",
-        factor=cfg.CLF_LR_STEP_FACTOR,
-        patience=cfg.CLF_LR_SCHEDULER_PATIENCE)
+        factor= clss_config.CLF_LR_STEP_FACTOR,
+        patience= clss_config.CLF_LR_SCHEDULER_PATIENCE)
     
     train_AD = "AD" in args.model_type
     if train_AD:
         adv_model = AdvNet(
-            num_target_classes=cfg.NUM_DISEASE_CLASSES, 
-            num_protected_classes=cfg.NUM_PROTECTED_CLASSES).to(device)
+            num_target_classes=clss_config.NUM_DISEASE_CLASSES,
+            num_protected_classes=clss_config.NUM_PROTECTED_CLASSES).to(device)
         adv_criterion = CrossEntropyLoss()
-        adv_optimizer = Adam(adv_model.parameters(), lr=cfg.CLF_LR)
+        adv_optimizer = Adam(adv_model.parameters(), lr=clss_config.CLF_LR)
         adv_scheduler = lr_scheduler.ReduceLROnPlateau(
             adv_optimizer,
             mode="min",
-            factor=cfg.CLF_LR_STEP_FACTOR,
-            patience=cfg.CLF_LR_SCHEDULER_PATIENCE)
+            factor=clss_config.CLF_LR_STEP_FACTOR,
+            patience=clss_config.CLF_LR_SCHEDULER_PATIENCE)
         adv_model, adv_optimizer = pretrain_AdvNet(dataloader["train"], device, model, adv_model, adv_criterion, adv_optimizer)
     else:
         adv_model, adv_criterion, adv_optimizer, adv_scheduler = None, None, None, None
@@ -153,7 +147,7 @@ def train_model(args):
     early_stop_cnt = 0
     best_epoch = 0
     last_loss = 0
-    pbar = trange(cfg.CLF_NUM_EPOCHS)
+    pbar = trange(clss_config.CLF_NUM_EPOCHS)
     for epoch in pbar:
         total_loss = 0.0
         total_adv_loss = 0.0
@@ -162,6 +156,7 @@ def train_model(args):
         model.train()
         if train_AD:
             adv_model.train()
+
         for content in dataloader['train']:
             imgs, labels, skintone = content
             num_samples += labels.shape[0]
@@ -172,7 +167,7 @@ def train_model(args):
             preds = model(imgs)
             if train_AD:
                 adv_preds = adv_model(preds, labels)
-                adv_loss = adv_criterion(adv_preds, skintone) * cfg.CLF_ADV_LOSS_IMPORTANCE
+                adv_loss = adv_criterion(adv_preds, skintone) * clss_config.CLF_ADV_LOSS_IMPORTANCE
             else:
                 adv_loss = 0.0
             
@@ -185,7 +180,7 @@ def train_model(args):
             if train_AD:
                 preds = model(imgs)
                 adv_preds = adv_model(preds, labels)
-                adv_loss = adv_criterion(adv_preds, skintone) * cfg.CLF_ADV_LOSS_IMPORTANCE
+                adv_loss = adv_criterion(adv_preds, skintone) * clss_config.CLF_ADV_LOSS_IMPORTANCE
                 total_adv_loss += adv_loss.cpu().detach()
                 adv_model.zero_grad()
                 adv_loss.backward()
@@ -226,7 +221,7 @@ def train_model(args):
             break
 
     if early_stop_cnt == 0:
-        best_epoch = cfg.CLF_NUM_EPOCHS
+        best_epoch = clss_config.CLF_NUM_EPOCHS
         best_weights = {
                 'epoch': best_epoch,
                 'model': model.state_dict(),
@@ -238,9 +233,9 @@ def train_model(args):
                 'adv_scheduler': adv_scheduler.state_dict() if train_AD else None
             }
     if args.aux_model:
-        weights_dir = str(cfg.AUX_MODEL_DIR/f'{args.model_type}_best_model.pt')
+        weights_dir = str(clss_config.AUX_MODEL_DIR/f'{args.model_type}_best_model.pt')
     else:
-        weights_dir = str(cfg.CLF_OUTPUT_DIR / f'{args.model_type}_best_model.pt')
+        weights_dir = str(clss_config.CLF_OUTPUT_DIR / f'{args.model_type}_best_model.pt')
     T.save(best_weights, weights_dir)
     print(f"{weights_dir}")
 
@@ -250,23 +245,19 @@ def eval_model(args):
         print("***********************Test extra model*********************")
         _,_, test_loader = get_AUX_training_data()
         dataloader = {"test":test_loader}
-        weights_dir = str(cfg.AUX_MODEL_DIR / f'{args.model_type}_best_model.pt')
+        weights_dir = str(clss_config.AUX_MODEL_DIR / f'{args.model_type}_best_model.pt')
     else:
         datasets = load_clean_splits(args.model_type)
         dataloader = {
             dataset_type: DataLoader(
                 dataset=datasets[dataset_type],
-                batch_size=cfg.CLF_BATCH_SIZE,
-                num_workers=cpu_count(),
-                pin_memory=False, # This dataset is small, no need
-                drop_last=False,
-                shuffle=False
+                batch_size=clss_config.CLF_BATCH_SIZE
             ) for dataset_type in ['test']
         }
-        weights_dir = str(cfg.CLF_OUTPUT_DIR / f'{args.model_type}_best_model.pt')
+        weights_dir = str(clss_config.CLF_OUTPUT_DIR / f'{args.model_type}_best_model.pt')
     weights = T.load(weights_dir, map_location=device)
     model = resnet34(pretrained=True) # Default pretrained is imagenet
-    model.fc = Linear(512, len(cfg.CLF_Label_Translate.keys()))
+    model.fc = Linear(512, len(clss_config.CLF_Label_Translate.keys()))
     model.load_state_dict(weights['model'])
     model = model.to(device)
     criterion_model = CrossEntropyLoss()

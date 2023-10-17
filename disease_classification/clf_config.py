@@ -4,8 +4,8 @@
 from config import *
 
 # Classification config options
-ROOT_CLF_IMG_DIR = Path()
-CLF_ASSETS = Path('../disease_clf_assets')
+ROOT_CLF_IMG_DIR = Path("/home/haolin/Projects/lyme/media/HDD1/hadzia1/lyme_data/images_July2019")
+CLF_ASSETS = Path('/home/haolin/Projects/lyme_demo/disease_clf_assets')
 CLF_RAW_SPLITS_DIR = CLF_ASSETS / 'raw_splits'
 CLF_SPLITS_DIR = CLF_ASSETS / 'processed_splits'
 CLF_OUTPUT_DIR = Path('disease_classification/classification_runs')
@@ -13,7 +13,7 @@ CLF_MASK_DIR = CLF_OUTPUT_DIR / 'masks'
 
 CLF_BATCH_SIZE = 32
 CLF_LR = 1.e-3
-CLF_NUM_EPOCHS = 100
+CLF_NUM_EPOCHS = 5
 CLF_LR_STEP_FACTOR = 0.1
 CLF_LR_SCHEDULER_PATIENCE = 10
 CLF_ADV_LOSS_IMPORTANCE = 1.0
@@ -27,3 +27,4 @@ CLF_Label_Translate = {
 
 NUM_DISEASE_CLASSES = 4
 NUM_PROTECTED_CLASSES = 2
+EdgeMixup_class_root = "/home/haolin/Projects/lyme_demo/iter_class_data/"

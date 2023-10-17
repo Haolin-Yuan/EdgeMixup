@@ -32,8 +32,10 @@ The classification dataset has 2,712 samples, and we annotate those skin images 
     ```python train_segmentation_model.py --train```
 3. Evaluate segmentation model
     ```python train_segmentation_model.py --test```
-4. Generate segmentation masks for all splits
-    ```python train_segmentation_model.py --plot-all```
+
+[//]: # (4. Generate segmentation masks for all splits)
+
+[//]: # (    ```python train_segmentation_model.py --plot-all```)
 
 ![Segmentation Results](segmentation_results.png)
 
@@ -41,23 +43,28 @@ The classification dataset has 2,712 samples, and we annotate those skin images 
 # How to run disease classification
 1. Generate segmentation masks for the classification images calculate the image's ITA, and clean the data splits.
     ```python classify_disease.py --generate-masks```
-2. Train a model:
-    1. Image only model: ```python classify_disease.py --train --model-type baseline```
-    2. Image with adversarial debias model: ```python classify_disease.py --train --model-type AD```
-    3. Masked images model: ```python classify_disease.py --train --model-type masked```
-    4. Masked images with adversarial debias model: ```python classify_disease.py --train --model-type masked+AD```
-3. Evaluate a model:
-    1. Image only model: ```python classify_disease.py --test --model-type baseline```
-    2. Image with adversarial debias model: ```python classify_disease.py --test --model-type AD```
-    3. Masked images model: ```python classify_disease.py --test --model-type masked```
-    4. Masked images with adversarial debias model: ```python classify_disease.py --test --model-type masked+AD``
+2. Train a model: ```python classify_disease.py --train --model-type baseline```
+
+[//]: # (    2. Image with adversarial debias model: ```python classify_disease.py --train --model-type AD```)
+
+[//]: # (    3. Masked images model: ```python classify_disease.py --train --model-type masked```)
+
+[//]: # (    4. Masked images with adversarial debias model: ```python classify_disease.py --train --model-type masked+AD```)
+3. Evaluate a model:```python classify_disease.py --test --model-type baseline```
+
+[//]: # (    2. Image with adversarial debias model: ```python classify_disease.py --test --model-type AD```)
+
+[//]: # (    3. Masked images model: ```python classify_disease.py --test --model-type masked```)
+
+[//]: # (    4. Masked images with adversarial debias model: ```python classify_disease.py --test --model-type masked+AD``)
 
 ![Cls Results](classification_results.png)
 
-# How to run disease classification
+# How to run EdgeMixup
 
 1. On Segmentation tasks: ```python train_segmentation_model.py --iterative```
 
+1. On Classification tasks:```python classify_disease.py --train --edgemixup = True```
 
 # Please cite it if you intend to use our datasets or method.  
 ```
